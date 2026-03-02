@@ -1,0 +1,65 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "PicoSearch",
+  "projectDescription": "A lightweight fuzzy search library under 750 bytes with fzf-style subsequence matching and word boundary awareness",
+  "theme": "palm",
+  "primaryColor": "#3B82F6",
+  "lightColor": "#60A5FA",
+  "darkColor": "#2563EB",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "installation",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Core Concepts",
+        "pages": [
+          "concepts/how-it-works",
+          "concepts/scoring-algorithm"
+        ]
+      },
+      {
+        "group": "Usage Guide",
+        "pages": [
+          "guide/basic-usage",
+          "guide/weighted-keys",
+          "guide/multi-word-queries",
+          "guide/threshold-configuration"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/pico-search",
+          "api/types"
+        ]
+      },
+      {
+        "group": "Advanced",
+        "pages": [
+          "advanced/examples",
+          "advanced/performance"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Lightweight (under 750 bytes minified + brotli)",
+    "fzf-style subsequence matching",
+    "Word boundary awareness for better matching",
+    "Weighted key support for prioritizing search fields",
+    "Multi-word query support",
+    "Configurable threshold for filtering results",
+    "TypeScript support with full type definitions"
+  ],
+  "publicApiSurface": [
+    "picoSearch(objectsArray, searchTerm, keys, config?)",
+    "fuzzyScore(target, pattern)",
+    "weightedAverage(values, weights?)"
+  ]
+}
