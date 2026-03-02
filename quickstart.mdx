@@ -1,80 +1,183 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get up and running with PicoSearch in under 2 minutes
 ---
 
-## Get started in three steps
+# Quickstart
 
-Get your documentation site running locally and make your first customization.
+This guide will get you up and running with PicoSearch in just a few minutes. You'll learn how to perform basic fuzzy searches on your data.
 
-### Step 1: Set up your local environment
+## Installation
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+First, install PicoSearch using your preferred package manager:
 
-### Step 2: Deploy your changes
+<CodeGroup>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+```bash npm
+npm install @scmmishra/pico-search
+```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+```bash pnpm
+pnpm add @scmmishra/pico-search
+```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+```bash yarn
+yarn add @scmmishra/pico-search
+```
 
-### Step 3: Go live
+</CodeGroup>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## Basic usage
+
+<Steps>
+  <Step title="Import the library">
+    Import the `picoSearch` function from the package:
+
+    ```typescript
+    import { picoSearch } from "@scmmishra/pico-search";
+    ```
+  </Step>
+
+  <Step title="Prepare your data">
+    PicoSearch works with arrays of objects. Define your data structure:
+
+    ```typescript
+    interface Person {
+      name: string;
+      age: number;
+    }
+
+    const people: Person[] = [
+      { name: "Alice", age: 25 },
+      { name: "Bob", age: 30 },
+      { name: "Charlie", age: 35 },
+      { name: "David", age: 40 },
+    ];
+    ```
+  </Step>
+
+  <Step title="Perform a search">
+    Call `picoSearch` with your data, search term, and the keys to search:
+
+    ```typescript
+    const searchTerm = "ali";
+    const keys = ["name"];
+
+    const results = picoSearch(people, searchTerm, keys);
+    console.log(results);
+    // Output: [{ name: "Alice", age: 25 }]
+    ```
+  </Step>
+</Steps>
+
+## Complete example
+
+Here's a complete working example you can copy and run:
+
+```typescript
+import { picoSearch } from "@scmmishra/pico-search";
+
+interface Person {
+  name: string;
+  age: number;
+  city: string;
+}
+
+const people: Person[] = [
+  { name: "Alice Johnson", age: 25, city: "New York" },
+  { name: "Bob Smith", age: 30, city: "San Francisco" },
+  { name: "Charlie Brown", age: 35, city: "Chicago" },
+  { name: "David Lee", age: 40, city: "Boston" },
+];
+
+// Simple search
+const results1 = picoSearch(people, "ali", ["name"]);
+console.log("Search for 'ali':", results1);
+// Output: [{ name: "Alice Johnson", age: 25, city: "New York" }]
+
+// Subsequence matching
+const results2 = picoSearch(people, "cg", ["city"]);
+console.log("Search for 'cg':", results2);
+// Output: [{ name: "Charlie Brown", age: 35, city: "Chicago" }]
+
+// Multi-field search
+const results3 = picoSearch(people, "bob", ["name", "city"]);
+console.log("Search for 'bob':", results3);
+// Output: [{ name: "Bob Smith", age: 30, city: "San Francisco" }]
+```
+
+## Try it yourself
+
+<Tip>
+Want to experiment interactively? Try PicoSearch on [CodeSandbox](https://codesandbox.io/s/picosearch-demo-i79btf) to see it in action.
+</Tip>
+
+## Understanding the results
+
+PicoSearch returns an array of objects that match your search term, sorted by relevance:
+
+- **Case insensitive:** Searches are case-insensitive by default
+- **Subsequence matching:** You can type scattered characters (e.g., "ajn" matches "Alice Johnson")
+- **Ranked by relevance:** Results are sorted with the best matches first
+- **Original objects:** The returned objects are the same objects from your input array (not copies)
+
+## Common patterns
+
+### Searching multiple fields
+
+Search across multiple properties of your objects:
+
+```typescript
+const results = picoSearch(people, "york", ["name", "city"]);
+// Finds matches in both name and city fields
+```
+
+### Using weighted keys
+
+Prioritize certain fields over others:
+
+```typescript
+const results = picoSearch(people, "john", [
+  { name: "name", weight: 3 },  // Name is 3x more important
+  { name: "city", weight: 1 },  // City has default weight
+]);
+```
+
+### Adjusting the threshold
+
+Control how strict the matching should be:
+
+```typescript
+// Stricter matching (fewer results)
+const strictResults = picoSearch(people, "ali", ["name"], {
+  threshold: 0.7,
+});
+
+// Looser matching (more results)
+const looseResults = picoSearch(people, "ali", ["name"], {
+  threshold: 0.2,
+});
+```
+
+<Note>
+The default threshold is 0.3, which provides a good balance between precision and recall for most use cases.
+</Note>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
+Now that you've got the basics down, explore more advanced features:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Basic usage" icon="book" href="/guide/basic-usage">
+    Learn more about fundamental search patterns
+  </Card>
+  <Card title="Weighted keys" icon="weight-scale" href="/guide/weighted-keys">
+    Prioritize certain fields in your searches
+  </Card>
+  <Card title="Multi-word queries" icon="magnifying-glass" href="/guide/multi-word-queries">
+    Search with multiple terms simultaneously
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/pico-search">
+    Explore the complete API documentation
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

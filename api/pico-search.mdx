@@ -1,0 +1,179 @@
+---
+title: picoSearch
+description: Main search function for fuzzy searching through arrays of objects
+---
+
+## Function signature
+
+```typescript
+function picoSearch<T>(
+  objectsArray: T[],
+  searchTerm: string,
+  keys: Keys,
+  config?: { threshold: number }
+): T[]
+```
+
+The `picoSearch` function performs fuzzy searching on an array of objects based on a search term and specified keys. It returns matching objects ordered by their similarity score.
+
+## Parameters
+
+<ParamField path="objectsArray" type="T[]" required>
+  The array of objects to search through. Can be any type of object.
+</ParamField>
+
+<ParamField path="searchTerm" type="string" required>
+  The search term to match against the objects. If empty or not a string, returns the original array unchanged.
+  
+  For multi-word searches, the search term is automatically split by whitespace and all terms must match somewhere in the object.
+</ParamField>
+
+<ParamField path="keys" type="Keys" required>
+  The keys to search in each object. Can be specified as:
+  - An array of strings: `["name", "email"]`
+  - An array with weighted keys: `[{ name: "title", weight: 2 }, { name: "description", weight: 1 }]`
+  - A mix of both: `["name", { name: "email", weight: 0.5 }]`
+  
+  Keys with higher weights have more influence on the final similarity score.
+</ParamField>
+
+<ParamField path="config" type="object">
+  Optional configuration object.
+  
+  <Expandable title="properties">
+    <ParamField path="threshold" type="number" default="0.3">
+      Minimum similarity score (0-1) required for a match. Results with scores below this threshold are filtered out.
+      
+      - `0` = match everything
+      - `0.3` = default, balanced filtering
+      - `1` = only exact matches
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Returns
+
+<ResponseField name="result" type="T[]">
+  An array of objects that match the search criteria, ordered by their similarity score (highest first).
+  
+  Objects with higher similarity scores appear first in the results.
+</ResponseField>
+
+## How it works
+
+### Single-word search
+For single-word searches, the function:
+1. Scores each key separately using fuzzy matching
+2. Calculates a weighted average of all key scores
+3. Includes the object if the score meets the threshold
+
+### Multi-word search
+For multi-word searches, the function:
+1. Splits the search term by whitespace
+2. Each term finds its best score across all keys
+3. Uses the minimum score across all terms (all terms must match)
+4. Includes the object if the score meets the threshold
+
+## Examples
+
+### Basic search
+
+<CodeGroup>
+```typescript Basic usage
+import { picoSearch } from '@scmmishra/pico-search'
+
+const users = [
+  { name: 'John Doe', email: 'john@example.com' },
+  { name: 'Jane Smith', email: 'jane@example.com' },
+  { name: 'Bob Johnson', email: 'bob@example.com' }
+]
+
+const results = picoSearch(users, 'john', ['name', 'email'])
+// Returns: [{ name: 'John Doe', ... }, { name: 'Bob Johnson', ... }]
+```
+
+```typescript With weights
+import { picoSearch } from '@scmmishra/pico-search'
+
+const articles = [
+  { title: 'Introduction to TypeScript', content: 'Learn TypeScript basics...' },
+  { title: 'Advanced React', content: 'TypeScript with React...' }
+]
+
+// Prioritize title matches over content matches
+const results = picoSearch(
+  articles,
+  'typescript',
+  [
+    { name: 'title', weight: 2 },
+    { name: 'content', weight: 1 }
+  ]
+)
+// 'Introduction to TypeScript' will rank higher than 'Advanced React'
+```
+</CodeGroup>
+
+### Custom threshold
+
+```typescript
+import { picoSearch } from '@scmmishra/pico-search'
+
+const products = [
+  { name: 'Laptop Pro', category: 'Electronics' },
+  { name: 'Laptop Stand', category: 'Accessories' }
+]
+
+// Only include very close matches
+const results = picoSearch(
+  products,
+  'lap',
+  ['name'],
+  { threshold: 0.7 }
+)
+```
+
+### Multi-word search
+
+```typescript
+import { picoSearch } from '@scmmishra/pico-search'
+
+const contacts = [
+  { name: 'John Doe', company: 'Acme Corp' },
+  { name: 'Jane Doe', company: 'Tech Inc' },
+  { name: 'John Smith', company: 'Acme Corp' }
+]
+
+// Both "john" and "acme" must match somewhere
+const results = picoSearch(contacts, 'john acme', ['name', 'company'])
+// Returns: [{ name: 'John Doe', company: 'Acme Corp' }, { name: 'John Smith', company: 'Acme Corp' }]
+```
+
+### Empty search handling
+
+```typescript
+import { picoSearch } from '@scmmishra/pico-search'
+
+const items = [{ id: 1 }, { id: 2 }]
+
+const results = picoSearch(items, '', ['id'])
+// Returns the original array unchanged
+```
+
+## Type safety
+
+The function is fully generic and preserves the type of your objects:
+
+```typescript
+interface User {
+  id: number
+  name: string
+  email: string
+}
+
+const users: User[] = [
+  { id: 1, name: 'John', email: 'john@example.com' }
+]
+
+// Result is typed as User[]
+const results = picoSearch<User>(users, 'john', ['name', 'email'])
+```

@@ -1,0 +1,133 @@
+---
+title: Basic usage
+description: Learn how to perform simple fuzzy searches with PicoSearch
+---
+
+PicoSearch exposes a single function `picoSearch()` that searches through arrays of objects using fuzzy matching. This guide covers the fundamentals of using PicoSearch.
+
+## Simple search example
+
+The most basic usage requires three parameters: an array of objects, a search term, and an array of keys to search:
+
+```typescript
+import { picoSearch } from "@scmmishra/pico-search";
+
+interface Person {
+  name: string;
+  age: number;
+}
+
+const people: Person[] = [
+  { name: "Alice", age: 25 },
+  { name: "Bob", age: 30 },
+  { name: "Charlie", age: 35 },
+  { name: "David", age: 40 },
+];
+
+const searchTerm = "ali";
+const keys = ["name"];
+
+const results = picoSearch(people, searchTerm, keys);
+console.log(results); // [{ name: "Alice", age: 25 }]
+```
+
+## Subsequence matching
+
+PicoSearch uses an fzf-style subsequence matching algorithm. This means you can type scattered characters and still find results:
+
+<CodeGroup>
+
+```typescript Abbreviated search
+picoSearch(people, "cd", ["name"]);
+// [{ name: "Charlie", age: 35 }, { name: "David", age: 40 }]
+```
+
+```typescript Initials
+picoSearch(people, "jd", ["name"]);
+// [{ name: "John Doe", age: 25 }]
+```
+
+```typescript Complex pattern
+const movies = [
+  { title: "The Shawshank Redemption" },
+  { title: "The Godfather" },
+  { title: "Shrek" },
+];
+
+picoSearch(movies, "shwshnk", ["title"]);
+// [{ title: "The Shawshank Redemption" }]
+```
+
+</CodeGroup>
+
+<Note>
+Subsequence matching finds characters in order but not necessarily consecutively. For example, "cd" matches both "**C**harlie **D**oe" and "**C**roco**d**ile Dundee".
+</Note>
+
+## Searching multiple keys
+
+You can search across multiple fields in your objects:
+
+```typescript
+const people = [
+  { name: "John Doe", age: 25, city: "New York" },
+  { name: "Jane Smith", age: 35, city: "San Francisco" },
+  { name: "Bob Johnson", age: 45, city: "Los Angeles" },
+];
+
+const results = picoSearch(people, "san", ["name", "city"]);
+// Matches both "Jane Smith" (San Francisco) and "Bob Johnson" (San)
+```
+
+## Empty search behavior
+
+When the search term is empty or only whitespace, PicoSearch returns the entire array:
+
+```typescript
+picoSearch(people, "", ["name"]); // Returns all people
+picoSearch(people, "   ", ["name"]); // Returns all people
+```
+
+<Tip>
+This behavior is useful for implementing search inputs where an empty field should show all results.
+</Tip>
+
+## Ranking and ordering
+
+Results are automatically sorted by relevance, with the best matches appearing first:
+
+```typescript
+const data = [
+  { name: "Crocodile Dundee" },
+  { name: "Django Unchained" },
+  { name: "The Deer Hunter" },
+];
+
+const result = picoSearch(data, "Dund", ["name"]);
+// result[0].name === "Crocodile Dundee" (prefix match ranks highest)
+```
+
+PicoSearch rewards:
+- **Consecutive character runs**: "abc" in "abcdef" scores higher than in "aXbXc"
+- **Word boundary matches**: Matches after spaces, hyphens, or camelCase boundaries
+- **Prefix hits**: Matches at the start of the string or after word boundaries
+- **Shorter targets**: When scores are similar, shorter strings rank higher
+
+## Handling missing data
+
+PicoSearch safely handles null or non-string values:
+
+```typescript
+const data = [
+  { name: "John Doe", city: null },
+  { name: "Jane Smith", city: "Boston" },
+];
+
+// Won't throw an error
+const results = picoSearch(data, "John", ["name", "city"]);
+// [{ name: "John Doe", city: null }]
+```
+
+<Note>
+Non-string values are treated as empty strings and won't contribute to the match score.
+</Note>

@@ -1,0 +1,144 @@
+---
+title: Installation
+description: Install PicoSearch using npm, pnpm, or yarn
+---
+
+# Installation
+
+PicoSearch is available as an npm package and can be installed using your preferred package manager.
+
+## Package managers
+
+<CodeGroup>
+
+```bash npm
+npm install @scmmishra/pico-search
+```
+
+```bash pnpm
+pnpm add @scmmishra/pico-search
+```
+
+```bash yarn
+yarn add @scmmishra/pico-search
+```
+
+</CodeGroup>
+
+## Requirements
+
+PicoSearch has no runtime dependencies and works in any JavaScript environment that supports ES6+:
+
+- **Node.js** 12 or higher
+- **Modern browsers** (Chrome, Firefox, Safari, Edge)
+- **TypeScript** 4.0 or higher (optional, but recommended)
+
+<Note>
+PicoSearch is written in TypeScript and includes type definitions out of the box. No need to install separate `@types` packages.
+</Note>
+
+## Importing
+
+Once installed, you can import PicoSearch using ES modules or CommonJS:
+
+<Tabs>
+  <Tab title="ES modules">
+    ```typescript
+    import { picoSearch } from "@scmmishra/pico-search";
+    ```
+  </Tab>
+  <Tab title="CommonJS">
+    ```javascript
+    const { picoSearch } = require("@scmmishra/pico-search");
+    ```
+  </Tab>
+</Tabs>
+
+## TypeScript setup
+
+If you're using TypeScript, PicoSearch includes full type definitions. Simply import and use:
+
+```typescript
+import { picoSearch } from "@scmmishra/pico-search";
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+const users: User[] = [
+  { id: 1, name: "Alice", email: "alice@example.com" },
+  { id: 2, name: "Bob", email: "bob@example.com" },
+];
+
+const results = picoSearch(users, "ali", ["name", "email"]);
+// TypeScript knows results is User[]
+```
+
+<Tip>
+The generic type parameter `T` is automatically inferred from your input array, so you get full type safety without extra annotations.
+</Tip>
+
+## Bundle size
+
+PicoSearch is optimized for minimal bundle impact:
+
+- **Minified:** ~1.2 kB
+- **Minified + Brotli:** ~750 bytes
+- **Minified + Gzip:** ~850 bytes
+
+The library has zero runtime dependencies, so this is the only addition to your bundle.
+
+## CDN usage
+
+For quick prototyping or simple projects, you can use PicoSearch directly from a CDN:
+
+```html
+<script type="module">
+  import { picoSearch } from "https://esm.sh/@scmmishra/pico-search";
+  
+  const data = [
+    { name: "Alice" },
+    { name: "Bob" },
+  ];
+  
+  const results = picoSearch(data, "ali", ["name"]);
+  console.log(results);
+</script>
+```
+
+<Warning>
+CDN usage is convenient for prototyping but not recommended for production. Use a package manager for better caching, version control, and build optimization.
+</Warning>
+
+## Verification
+
+To verify your installation, create a simple test file:
+
+```typescript
+import { picoSearch } from "@scmmishra/pico-search";
+
+const testData = [
+  { name: "Apple" },
+  { name: "Banana" },
+  { name: "Cherry" },
+];
+
+const results = picoSearch(testData, "app", ["name"]);
+console.log(results);
+// Output: [{ name: "Apple" }]
+```
+
+If this runs without errors, you're all set!
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get started with your first search implementation
+  </Card>
+  <Card title="Basic usage" icon="book" href="/guide/basic-usage">
+    Learn the fundamentals of using PicoSearch
+  </Card>
+</CardGroup>

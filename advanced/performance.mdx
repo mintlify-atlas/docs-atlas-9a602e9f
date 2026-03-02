@@ -1,0 +1,328 @@
+---
+title: Performance characteristics
+description: Benchmarks, optimization strategies, and what makes PicoSearch fast
+---
+
+PicoSearch is designed to be fast and lightweight. At under 750 bytes (minified + brotli), it delivers fuzzy search without bloating your bundle.
+
+## Size and bundle impact
+
+<CardGroup cols={2}>
+  <Card title="Bundle size" icon="box">
+    Under **750 bytes** minified + brotli compressed
+  </Card>
+  <Card title="Size limit" icon="ruler">
+    Enforced at **1.2 kB** via automated checks in CI
+  </Card>
+  <Card title="Zero dependencies" icon="circle-nodes">
+    No external dependencies to inflate your bundle
+  </Card>
+  <Card title="Tree-shakeable" icon="tree">
+    ES modules with single export for optimal tree-shaking
+  </Card>
+</CardGroup>
+
+<Info>
+The package uses size-limit in CI to ensure the bundle never exceeds 1.2 kB. This is configured in `package.json` and runs on every commit.
+</Info>
+
+### What makes it tiny
+
+PicoSearch achieves its sub-1kb size through:
+
+- **Single algorithm**: Uses only fuzzy scoring, no complex string distance calculations
+- **Minimal API surface**: One function, one purpose
+- **No dependencies**: All code is self-contained
+- **Efficient implementation**: Greedy forward+reverse scan instead of dynamic programming
+- **Zero runtime overhead**: No setup, no indexing, no preprocessing
+
+## Performance benchmarks
+
+Benchmarks from the test suite (`bench/pico.perf.ts`) show real-world performance:
+
+### Search throughput
+
+```typescript
+// Benchmark: Search 50,000 items
+picoSearch(testData, "data-point-39900", ["name"], { threshold: 0.8 });
+
+// Benchmark: Search 5,000 items
+picoSearch(testData.slice(0, 5000), "data-point-39900", ["name"], { threshold: 0.8 });
+
+// Benchmark: Search 500 items
+picoSearch(testData.slice(0, 500), "data-point-39900", ["name"], { threshold: 0.8 });
+```
+
+<Tip>
+PicoSearch is optimized for common UI search scenarios: filtering lists of hundreds to thousands of items in real-time as the user types.
+</Tip>
+
+### Algorithm complexity
+
+<Accordion title="Time complexity">
+  **O(n × m × k)** where:
+  - `n` = number of items
+  - `m` = average string length
+  - `k` = number of searchable keys per item
+
+  The fuzzy scoring algorithm itself is **O(m)** per string comparison using a greedy forward+reverse scan, not dynamic programming.
+
+  For multi-word queries, multiply by the number of search terms.
+</Accordion>
+
+<Accordion title="Space complexity">
+  **O(n)** for storing results array.
+
+  No preprocessing or index building means zero memory overhead before search.
+</Accordion>
+
+## Performance characteristics
+
+### Strengths
+
+<CardGroup cols={2}>
+  <Card title="Small datasets" icon="gauge-high">
+    Blazing fast on lists under 1,000 items. Perfect for autocomplete, command palettes, and filters.
+  </Card>
+  <Card title="Real-time search" icon="bolt">
+    No indexing means instant startup. Search as the user types with no delay.
+  </Card>
+  <Card title="Memory efficient" icon="memory">
+    No index to build or store. Minimal memory footprint beyond the original data.
+  </Card>
+  <Card title="Simple integration" icon="plug">
+    Drop in and search immediately. No configuration, no setup, no preprocessing.
+  </Card>
+</CardGroup>
+
+### Trade-offs
+
+<CardGroup cols={2}>
+  <Card title="Large datasets" icon="database">
+    For datasets over 10,000 items, consider throttling/debouncing input or using indexed solutions.
+  </Card>
+  <Card title="Complex queries" icon="code-branch">
+    Advanced features like typo tolerance, phonetic matching, or ranked field boosts require larger libraries.
+  </Card>
+</CardGroup>
+
+## Optimization strategies
+
+### Threshold tuning
+
+The threshold parameter is the most powerful performance optimization:
+
+```typescript
+// Higher threshold = faster search (fewer results to sort)
+const results = picoSearch(largeDataset, "query", ["name"], {
+  threshold: 0.7, // Only high-quality matches
+});
+
+// Lower threshold = slower search (more results to process)
+const results = picoSearch(largeDataset, "query", ["name"], {
+  threshold: 0.1, // Include weak matches
+});
+```
+
+<Tip>
+Increasing the threshold from 0.3 to 0.6 can significantly reduce the number of results that need sorting, speeding up searches on large datasets.
+</Tip>
+
+### Limit searchable keys
+
+Only search the fields you need:
+
+```typescript
+// Slower: searching many fields
+picoSearch(data, query, ["name", "title", "description", "tags", "category"]);
+
+// Faster: search only essential fields
+picoSearch(data, query, ["name", "title"]);
+```
+
+### Debounce user input
+
+For real-time search as users type, debounce to avoid unnecessary searches:
+
+```typescript
+import { picoSearch } from "@scmmishra/pico-search";
+
+let timeout;
+const searchInput = document.querySelector("#search");
+
+searchInput.addEventListener("input", (e) => {
+  clearTimeout(timeout);
+  timeout = setTimeout(() => {
+    const results = picoSearch(data, e.target.value, ["name"]);
+    displayResults(results);
+  }, 150); // Wait 150ms after user stops typing
+});
+```
+
+### Slice results
+
+If you only need the top N results, slice the array:
+
+```typescript
+const topResults = picoSearch(data, query, ["name"]).slice(0, 10);
+```
+
+Note: PicoSearch still scores all items, so this doesn't improve search speed, but it helps with rendering performance.
+
+## When to use PicoSearch
+
+### Ideal use cases
+
+<Accordion title="Command palettes and quick switchers">
+  Perfect for VSCode-style command palettes where users search through hundreds of commands, files, or actions.
+
+  ```typescript
+  const commands = [
+    { name: "Open File", action: "file.open" },
+    { name: "Save File", action: "file.save" },
+    { name: "Toggle Sidebar", action: "view.sidebar" },
+  ];
+
+  picoSearch(commands, "op fi", ["name"]);
+  // Returns: Open File
+  ```
+</Accordion>
+
+<Accordion title="Autocomplete dropdowns">
+  Great for autocomplete in forms where you're searching through tags, labels, or options:
+
+  ```typescript
+  const tags = [
+    { label: "bug-report" },
+    { label: "feature-request" },
+    { label: "documentation" },
+  ];
+
+  picoSearch(tags, "feat", ["label"]);
+  // Returns: feature-request
+  ```
+</Accordion>
+
+<Accordion title="Client-side table filtering">
+  Filter tables and lists in real-time:
+
+  ```typescript
+  const users = [
+    { name: "Alice Johnson", email: "alice@example.com" },
+    { name: "Bob Smith", email: "bob@example.com" },
+  ];
+
+  picoSearch(users, "ali", ["name", "email"]);
+  // Returns: Alice Johnson
+  ```
+</Accordion>
+
+<Accordion title="Label and tag search in issue trackers">
+  Search through labels with hyphens, numbers, and special patterns:
+
+  ```typescript
+  const labels = [
+    { name: "v2-migration" },
+    { name: "high-priority" },
+    { name: "customer-support" },
+  ];
+
+  picoSearch(labels, "v2", ["name"]);
+  // Returns: v2-migration
+  ```
+</Accordion>
+
+### When to choose alternatives
+
+<CardGroup cols={2}>
+  <Card title="Very large datasets" icon="database">
+    For 100,000+ items, consider indexed solutions like Fuse.js or server-side search.
+  </Card>
+  <Card title="Advanced features" icon="star">
+    If you need phonetic matching, typo tolerance, or complex ranking, use specialized libraries.
+  </Card>
+  <Card title="Full-text search" icon="book">
+    For searching long documents or articles, use dedicated full-text search engines.
+  </Card>
+  <Card title="Server-side search" icon="server">
+    For distributed or persistent data, use Elasticsearch, Algolia, or database full-text search.
+  </Card>
+</CardGroup>
+
+## Algorithm details
+
+PicoSearch uses a greedy forward+reverse subsequence scan inspired by fzf:
+
+### Scoring process
+
+1. **Forward scan**: Find the first valid subsequence match
+2. **Reverse scan**: Tighten the match to the smallest window
+3. **Score calculation**: Reward consecutive runs, word boundaries, and prefix matches
+4. **Length normalization**: Apply mild length penalty to prefer shorter targets
+
+```typescript
+// Example: searching "jd" in "John Doe"
+// 1. Forward scan: finds J...D
+// 2. Reverse scan: tightens to J...D (no improvement here)
+// 3. Score bonuses:
+//    - Word boundary match (J at start, D after space)
+//    - Short target length
+//    - Result: high score
+```
+
+### Why this algorithm
+
+<CardGroup cols={2}>
+  <Card title="Fast" icon="rocket">
+    Greedy scan is O(m) instead of O(m²) dynamic programming used in edit distance.
+  </Card>
+  <Card title="Intuitive" icon="lightbulb">
+    Matches user expectations from tools like fzf, VSCode, and Sublime Text.
+  </Card>
+  <Card title="Compact" icon="compress">
+    Simple algorithm means less code and smaller bundle size.
+  </Card>
+  <Card title="Predictable" icon="check">
+    Consistent ranking: prefix > word boundary > contiguous > scattered matches.
+  </Card>
+</CardGroup>
+
+## Utility benchmarks
+
+The library includes benchmarked utility functions:
+
+```typescript
+// weightedAverage: Used for multi-key scoring
+weightedAverage([1, 2, 3, 4, 5], [1, 2, 3, 4, 5]);
+
+// splitAndTrim: Used for multi-word queries
+splitAndTrim("Hello world this is a good day");
+
+// clamp: Used for score normalization
+clamp(10);
+```
+
+These utilities are optimized for the most common cases in search scenarios.
+
+## Best practices for performance
+
+<CardGroup cols={2}>
+  <Card title="Profile your use case" icon="chart-line">
+    Benchmark with your actual data size and search patterns. What works for 100 items may not for 10,000.
+  </Card>
+  <Card title="Increase threshold" icon="arrow-up">
+    Higher thresholds mean fewer results to sort. Start at 0.5+ for large datasets.
+  </Card>
+  <Card title="Minimize searchable keys" icon="key">
+    Each additional key multiplies the work. Search only what users care about.
+  </Card>
+  <Card title="Debounce input" icon="clock">
+    Wait 100-200ms after user stops typing to avoid searching on every keystroke.
+  </Card>
+  <Card title="Virtualize results" icon="list">
+    Use virtual scrolling for large result sets to improve rendering performance.
+  </Card>
+  <Card title="Consider pagination" icon="books">
+    For very large datasets, fetch and search smaller chunks from the server.
+  </Card>
+</CardGroup>

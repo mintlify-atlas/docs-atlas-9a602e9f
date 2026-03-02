@@ -1,0 +1,279 @@
+---
+title: Threshold configuration
+description: Learn how to control match quality with the threshold option
+---
+
+The threshold option allows you to filter out weak matches by setting a minimum score requirement. This helps you balance between recall (finding all possible matches) and precision (only showing good matches).
+
+## What is the threshold?
+
+PicoSearch scores every match from 0 (no match) to 1 (perfect match). The threshold is the minimum score required for a result to be included:
+
+```typescript
+const results = picoSearch(people, searchTerm, keys, {
+  threshold: 0.5,
+});
+```
+
+From the source code at `src/pico.ts:31`:
+
+```typescript
+const threshold = config?.threshold ?? 0.3;
+```
+
+<Note>
+The default threshold is **0.3**, which provides a good balance for most use cases.
+</Note>
+
+## How threshold filtering works
+
+After calculating each result's similarity score, PicoSearch checks it against the threshold:
+
+```typescript
+// From src/pico.ts:53-54 (single term)
+if (similarity >= threshold) {
+  results.push({ object: obj, similarity });
+}
+
+// From src/pico.ts:72-74 (multi-word)
+if (similarity >= threshold) {
+  results.push({ object: obj, similarity });
+}
+```
+
+Only results with `similarity >= threshold` are included in the final output.
+
+## Choosing the right threshold
+
+<Tabs>
+  <Tab title="Low (0.1 - 0.3)">
+    **Best for:**
+    - Exploratory searches
+    - Large datasets where you want to see more options
+    - When users might misspell or use vague terms
+    
+    ```typescript
+    picoSearch(products, searchTerm, keys, { threshold: 0.2 });
+    // More results, including weaker matches
+    ```
+    
+    <Warning>
+    May include results that seem irrelevant to users.
+    </Warning>
+  </Tab>
+  
+  <Tab title="Medium (0.3 - 0.5)">
+    **Best for:**
+    - General-purpose search
+    - Balanced recall and precision
+    - Default behavior
+    
+    ```typescript
+    picoSearch(products, searchTerm, keys, { threshold: 0.3 });
+    // Default - good for most cases
+    ```
+    
+    <Tip>
+    Start with the default (0.3) and adjust based on user feedback.
+    </Tip>
+  </Tab>
+  
+  <Tab title="High (0.5 - 0.8)">
+    **Best for:**
+    - Precise matching requirements
+    - Small, well-structured datasets
+    - When quality is more important than quantity
+    
+    ```typescript
+    picoSearch(products, searchTerm, keys, { threshold: 0.6 });
+    // Fewer results, only strong matches
+    ```
+    
+    <Warning>
+    May miss valid results, especially with abbreviated searches.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Practical examples
+
+### Default threshold behavior
+
+```typescript
+const objects = [
+  { name: "John Doe", age: 25, city: "New York" },
+  { name: "Jane Smith", age: 35, city: "San Francisco" },
+  { name: "Bob Johnson", age: 45, city: "Los Angeles" },
+];
+
+// With default threshold (0.3)
+const results = picoSearch(objects, "xyzxyz", ["name"]);
+console.log(results); // []
+// No matches because "xyzxyz" doesn't match any names well enough
+```
+
+### Comparing different thresholds
+
+<CodeGroup>
+
+```typescript Low threshold (0.1)
+const items = [
+  { label: "hello-world" },
+  { label: "help-center" },
+  { label: "high-priority" },
+];
+
+picoSearch(items, "h", ["label"], { threshold: 0.1 });
+// All three items - single 'h' matches all
+```
+
+```typescript Medium threshold (0.3)
+picoSearch(items, "h", ["label"], { threshold: 0.3 });
+// Possibly 1-2 items with stronger 'h' matches
+```
+
+```typescript High threshold (0.6)
+picoSearch(items, "h", ["label"], { threshold: 0.6 });
+// Likely empty - single character doesn't score high enough
+```
+
+</CodeGroup>
+
+## Dynamic thresholds
+
+You can adjust the threshold based on search term length or other criteria:
+
+```typescript
+function adaptiveSearch(data, searchTerm, keys) {
+  // Use lower threshold for short queries
+  const threshold = searchTerm.length <= 2 ? 0.2 : 0.4;
+  
+  return picoSearch(data, searchTerm, keys, { threshold });
+}
+
+adaptiveSearch(products, "ab", ["title"]);
+// Uses threshold: 0.2
+
+adaptiveSearch(products, "laptop", ["title"]);
+// Uses threshold: 0.4
+```
+
+<Tip>
+Consider lowering the threshold for very short search terms (1-2 characters) to compensate for inherently lower match scores.
+</Tip>
+
+## Threshold with weighted keys
+
+Threshold works independently of key weights:
+
+```typescript
+const results = picoSearch(
+  data,
+  "search",
+  [
+    { name: "title", weight: 5 },
+    { name: "description", weight: 1 },
+  ],
+  { threshold: 0.4 }
+);
+```
+
+The weighted average must still exceed the threshold:
+1. Each key is scored independently
+2. Scores are combined using weights
+3. Final weighted score is checked against threshold
+
+## No results handling
+
+When no results meet the threshold, you might want to implement fallback behavior:
+
+```typescript
+function searchWithFallback(data, searchTerm, keys) {
+  // Try with standard threshold
+  let results = picoSearch(data, searchTerm, keys, { threshold: 0.4 });
+  
+  // If no results, try with lower threshold
+  if (results.length === 0) {
+    results = picoSearch(data, searchTerm, keys, { threshold: 0.2 });
+  }
+  
+  return results;
+}
+```
+
+## Score calculation details
+
+PicoSearch calculates scores using the fuzzy matching algorithm in `src/algorithms/fuzzyScore.ts:6-63`:
+
+```typescript
+// Simplified scoring factors:
+// 1. Consecutive character runs: "abc" in "abcdef" scores higher
+// 2. Word boundary matches: after spaces, hyphens, camelCase
+// 3. Prefix hits: matches at start or after boundaries
+// 4. Length penalty: prefers shorter targets as tiebreaker
+
+const maxScore = (pLen * (pLen + 1)) / 2 + 2;
+const raw = Math.min(1, score / maxScore);
+const lengthPenalty = 1 - 0.1 * (1 - pLen / target.length);
+
+return raw * lengthPenalty;
+```
+
+Understanding these factors helps you choose appropriate thresholds:
+- Exact matches score close to 1.0
+- Good subsequence matches with word boundaries: 0.5-0.8
+- Scattered subsequence matches: 0.3-0.5
+- Weak matches: < 0.3
+
+## Common threshold values
+
+<CodeGroup>
+
+```typescript Permissive search
+// Good for: autocomplete, large result sets
+picoSearch(data, searchTerm, keys, { threshold: 0.2 });
+```
+
+```typescript Balanced search
+// Good for: general search, default behavior
+picoSearch(data, searchTerm, keys, { threshold: 0.3 });
+```
+
+```typescript Strict search
+// Good for: precise matching, command palettes
+picoSearch(data, searchTerm, keys, { threshold: 0.5 });
+```
+
+```typescript Very strict
+// Good for: validation, exact-ish matches only
+picoSearch(data, searchTerm, keys, { threshold: 0.7 });
+```
+
+</CodeGroup>
+
+<Warning>
+Setting threshold above 0.8 may only return nearly exact matches, defeating the purpose of fuzzy search.
+</Warning>
+
+## Testing your threshold
+
+Test with real search patterns from your application:
+
+```typescript
+const testCases = [
+  { query: "jd", expected: ["John Doe"] },
+  { query: "francisco", expected: ["San Francisco"] },
+  { query: "xyz", expected: [] },
+];
+
+testCases.forEach(({ query, expected }) => {
+  const results = picoSearch(data, query, keys, { threshold: 0.3 });
+  console.log(`Query: ${query}`);
+  console.log(`Results: ${results.length}`);
+  console.log(`Expected: ${expected.length}`);
+});
+```
+
+<Tip>
+Collect real user queries and adjust your threshold to match expected behavior for most common search patterns.
+</Tip>

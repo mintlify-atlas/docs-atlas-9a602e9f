@@ -1,0 +1,295 @@
+---
+title: Scoring algorithm
+description: Deep dive into PicoSearch's fuzzy matching and scoring mechanics
+---
+
+PicoSearch uses a three-phase fuzzy matching algorithm inspired by fzf. This page explains how the algorithm works in detail.
+
+## Algorithm overview
+
+The `fuzzyScore()` function (`fuzzyScore.ts:6`) takes a target string and a pattern, returning a score from 0 (no match) to 1 (perfect match):
+
+```typescript
+export default function fuzzyScore(target: string, pattern: string): number {
+  if (pattern.length === 0) return 1;
+  if (target.length === 0) return 0;
+
+  const tLower = target.toLowerCase();
+  const pLower = pattern.toLowerCase();
+
+  if (tLower === pLower) return 1;
+  // ... three phases follow
+}
+```
+
+<Note>
+  All matching is case-insensitive. The algorithm compares lowercase versions of both strings.
+</Note>
+
+## Phase 1: Forward scan
+
+The forward scan finds the first valid subsequence match by greedily consuming pattern characters from left to right:
+
+```typescript
+let pi = 0;
+let endPos = -1;
+for (let ti = 0; ti < tLower.length; ti++) {
+  if (tLower[ti] === pLower[pi]) {
+    pi++;
+    if (pi === pLen) { endPos = ti; break; }
+  }
+}
+if (endPos === -1) return 0; // no subsequence match
+```
+
+### How it works
+
+<Steps>
+  <Step title="Start at the beginning">
+    Begin with pattern index `pi = 0` and iterate through each character in the target.
+  </Step>
+  
+  <Step title="Match greedily">
+    When a target character matches the current pattern character, advance the pattern index.
+  </Step>
+  
+  <Step title="Record the end position">
+    When all pattern characters are matched, record the ending position and stop.
+  </Step>
+  
+  <Step title="Check for failure">
+    If we can't match all pattern characters, return 0 (no match).
+  </Step>
+</Steps>
+
+**Example**: Matching pattern "fzf" against target "fuzzyFilter"
+
+- `f` matches at position 0
+- `z` matches at position 2
+- `f` matches at position 5
+- `endPos = 5`
+
+## Phase 2: Reverse scan
+
+The reverse scan tightens the matching window by finding the latest possible starting position:
+
+```typescript
+let startPos = endPos;
+for (pi = pLen - 1; pi >= 0; pi--) {
+  while (tLower[startPos] !== pLower[pi]) startPos--;
+  startPos--;
+}
+startPos++; // startPos was decremented one extra time
+```
+
+### How it works
+
+<Steps>
+  <Step title="Start from the end">
+    Begin at `endPos` and work backwards through the pattern.
+  </Step>
+  
+  <Step title="Find latest matches">
+    For each pattern character (in reverse), find the rightmost matching position in the target.
+  </Step>
+  
+  <Step title="Establish the window">
+    This creates the tightest possible window `[startPos...endPos]` containing all pattern characters.
+  </Step>
+</Steps>
+
+**Example**: Continuing with "fzf" in "fuzzyFilter"
+
+- Starting from `endPos = 5`, work backwards
+- Final window: `[0...5]` = "fuzzyF"
+
+<Info>
+  The reverse scan ensures we score the most compact match region, which typically represents the best alignment between pattern and target.
+</Info>
+
+## Phase 3: Scoring
+
+Now we score the match window based on multiple quality signals:
+
+```typescript
+let score = 0;
+let consecutive = 0;
+pi = 0;
+
+for (let ti = startPos; ti <= endPos; ti++) {
+  if (tLower[ti] === pLower[pi]) {
+    consecutive++;
+    score += consecutive;
+
+    if (ti === 0) score += 2;
+    else if (isBoundary(target, ti)) score += 1.5;
+
+    pi++;
+  } else {
+    consecutive = 0;
+  }
+}
+```
+
+### Scoring factors
+
+The algorithm rewards three types of matches:
+
+<Accordion title="Consecutive character runs">
+  Each consecutive match contributes an increasing score:
+
+  ```typescript
+  consecutive++;
+  score += consecutive;
+  ```
+
+  - First character: +1
+  - Second consecutive: +2
+  - Third consecutive: +3
+  - And so on...
+
+  This heavily rewards exact substring matches over scattered matches.
+</Accordion>
+
+<Accordion title="Prefix matches">
+  Matches at the very start of the target get a +2 bonus:
+
+  ```typescript
+  if (ti === 0) score += 2;
+  ```
+
+  This prioritizes results that start with the search term.
+</Accordion>
+
+<Accordion title="Word boundary matches">
+  Matches at word boundaries get a +1.5 bonus:
+
+  ```typescript
+  else if (isBoundary(target, ti)) score += 1.5;
+  ```
+
+  This helps surface results where the pattern aligns with natural word breaks.
+</Accordion>
+
+### Word boundary detection
+
+The `isBoundary()` function identifies word boundaries:
+
+```typescript
+function isBoundary(str: string, i: number): boolean {
+  if (i === 0) return true;
+  const prev = str[i - 1];
+  const curr = str[i];
+  if (" _-./".includes(prev)) return true;
+  if (prev === prev.toLowerCase() && curr === curr.toUpperCase() && curr !== curr.toLowerCase()) return true;
+  return false;
+}
+```
+
+Boundaries are detected at:
+
+- Position 0 (string start)
+- After separators: space, underscore, hyphen, dot, slash
+- CamelCase transitions (lowercase → uppercase)
+
+**Examples**:
+- "getUserData" → boundaries at positions 0, 3, 7
+- "user-profile" → boundaries at positions 0, 5
+- "api/v2/users" → boundaries at positions 0, 4, 7
+
+## Normalization
+
+The raw score is normalized against the ideal score (a perfect consecutive match starting at position 0):
+
+```typescript
+const maxScore = (pLen * (pLen + 1)) / 2 + 2;
+const raw = Math.min(1, score / maxScore);
+```
+
+The formula `(pLen * (pLen + 1)) / 2` is the sum of consecutive integers from 1 to `pLen`, plus the +2 prefix bonus.
+
+### Length penalty
+
+A mild penalty favors shorter targets as tiebreakers:
+
+```typescript
+const lengthPenalty = 1 - 0.1 * (1 - pLen / target.length);
+return raw * lengthPenalty;
+```
+
+This prevents long strings with incidental matches from ranking above concise, relevant results.
+
+<Note>
+  The penalty is mild (max 10% reduction) and only affects ties. It doesn't override strong matches in longer strings.
+</Note>
+
+## Scoring examples
+
+Let's trace some examples:
+
+### Example 1: Perfect match
+
+Pattern: "search", Target: "search"
+
+- Forward scan: matches entirely
+- Reverse scan: window is `[0...5]`
+- Score: 1+2+3+4+5+6 = 21 (consecutive) + 2 (prefix) = 23
+- Max score: (6×7)/2 + 2 = 23
+- Normalized: 23/23 = 1.0
+- Length penalty: none (equal length)
+- **Final: 1.0**
+
+### Example 2: Prefix match
+
+Pattern: "sea", Target: "search"
+
+- Window: `[0...2]`
+- Score: 1+2+3 = 6 (consecutive) + 2 (prefix) = 8
+- Max score: (3×4)/2 + 2 = 8
+- Normalized: 8/8 = 1.0
+- Length penalty: 1 - 0.1 × (1 - 3/6) = 0.95
+- **Final: 0.95**
+
+### Example 3: Word boundary match
+
+Pattern: "ud", Target: "getUserData"
+
+- Window: `[3...9]` ("userDa")
+- Score at 'u' (pos 3): 1 + 1.5 (boundary after 'get')
+- Score at 'D' (pos 7): 2 + 1.5 (camelCase boundary)
+- Total: 2.5 + 3.5 = 6
+- Max score: (2×3)/2 + 2 = 5
+- Normalized: min(1, 6/5) = 1.0
+- Length penalty: 1 - 0.1 × (1 - 2/11) ≈ 0.92
+- **Final: 0.92**
+
+### Example 4: Scattered match
+
+Pattern: "fzf", Target: "fuzzyFilter"
+
+- Window: `[0...10]`
+- Score at 'f' (pos 0): 1 + 2 (prefix) = 3
+- Score at 'z' (pos 2): 1 (not consecutive)
+- Score at 'f' (pos 5): 1 (not consecutive) + 1.5 (boundary) = 2.5
+- Total: 6.5
+- Max score: (3×4)/2 + 2 = 8
+- Normalized: 6.5/8 = 0.8125
+- Length penalty: 1 - 0.1 × (1 - 3/11) ≈ 0.93
+- **Final: 0.75**
+
+<Info>
+  Notice how consecutive matches and boundary alignment significantly boost scores, while scattered matches receive lower rankings.
+</Info>
+
+## Why this algorithm works
+
+The three-phase approach provides several benefits:
+
+1. **Efficient early rejection**: The forward scan quickly eliminates non-matches
+2. **Optimal window selection**: The reverse scan finds the most compact match region
+3. **Quality-aware scoring**: Multiple factors combine to surface the most relevant matches
+4. **Intuitive rankings**: Results align with user expectations (prefixes, word starts, exact matches rank highest)
+
+<Note>
+  This algorithm is deterministic and produces consistent scores for the same input, making it ideal for caching and testing.
+</Note>

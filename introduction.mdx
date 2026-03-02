@@ -1,0 +1,112 @@
+---
+title: Introduction
+description: A lightweight fuzzy search library under 750 bytes with fzf-style subsequence matching
+---
+
+# Welcome to PicoSearch
+
+PicoSearch is a lightweight fuzzy search JavaScript library that provides developers with an easy-to-use, efficient way to perform fuzzy searches on arrays of objects. It uses an fzf-style subsequence matching algorithm with word boundary awareness, and allows for weighting of search keys.
+
+<Note>
+At under 750 bytes (minified + brotli), PicoSearch is an excellent choice for developers looking for a fast, lightweight search solution.
+</Note>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Ultra lightweight" icon="feather">
+    Less than 750 bytes minified and compressed — one of the smallest fuzzy search libraries available
+  </Card>
+  <Card title="Smart matching" icon="wand-magic-sparkles">
+    fzf-style subsequence matching with word boundary awareness for intuitive search results
+  </Card>
+  <Card title="Flexible weighting" icon="weight-scale">
+    Prioritize certain fields over others with weighted key support
+  </Card>
+  <Card title="TypeScript native" icon="code">
+    Built with TypeScript, includes full type definitions out of the box
+  </Card>
+  <Card title="Multi-word queries" icon="magnifying-glass">
+    Search across multiple fields with multi-word query support
+  </Card>
+  <Card title="Configurable" icon="sliders">
+    Adjust threshold settings to control match precision and recall
+  </Card>
+</CardGroup>
+
+## Why PicoSearch?
+
+Most fuzzy search libraries are powerful but come with significant bundle size costs. PicoSearch is designed for scenarios where you need fuzzy search capabilities without the overhead:
+
+- **Client-side search** in web applications where bundle size matters
+- **Autocomplete** and typeahead features
+- **Command palettes** and quick-find interfaces
+- **Tag and label filtering** with typo tolerance
+- **Mobile applications** where bandwidth is limited
+
+## How it works
+
+PicoSearch uses a greedy forward+reverse subsequence scan inspired by fzf:
+
+<Steps>
+  <Step title="Forward scan">
+    Finds the first valid subsequence match in the target string
+  </Step>
+  <Step title="Reverse scan">
+    Tightens the match to the smallest possible window
+  </Step>
+  <Step title="Scoring">
+    Rewards consecutive character runs, word boundary matches (spaces, hyphens, camelCase), and prefix hits
+  </Step>
+  <Step title="Normalization">
+    Applies a mild length penalty to prefer shorter targets as a tiebreaker
+  </Step>
+</Steps>
+
+## Quick example
+
+```typescript
+import { picoSearch } from "@scmmishra/pico-search";
+
+const people = [
+  { name: "Alice Johnson", role: "Engineer" },
+  { name: "Bob Smith", role: "Designer" },
+  { name: "Charlie Brown", role: "Manager" },
+];
+
+// Simple search
+const results = picoSearch(people, "ali", ["name"]);
+// Returns: [{ name: "Alice Johnson", role: "Engineer" }]
+
+// Subsequence matching
+const scattered = picoSearch(people, "ajn", ["name"]);
+// Returns: [{ name: "Alice Johnson", role: "Engineer" }]
+
+// Multi-field search with weights
+const weighted = picoSearch(people, "eng", [
+  { name: "name", weight: 2 },
+  { name: "role", weight: 3 },
+]);
+// Returns: [{ name: "Alice Johnson", role: "Engineer" }]
+```
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install PicoSearch with npm, pnpm, or yarn
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running in under 2 minutes
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/pico-search">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Examples" icon="book" href="/advanced/examples">
+    See real-world usage patterns and examples
+  </Card>
+</CardGroup>
+
+## Open source
+
+PicoSearch is released under the MIT License and is open source. Contributions, issues, and feature requests are welcome on [GitHub](https://github.com/scmmishra/pico-search).

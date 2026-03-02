@@ -1,0 +1,295 @@
+---
+title: Real-world examples
+description: Practical patterns and use cases for PicoSearch across different scenarios
+---
+
+PicoSearch excels in real-world applications where fast, intuitive search is needed without the overhead of large libraries. Here are practical examples drawn from the test suite and common use cases.
+
+## Search patterns
+
+### Basic single-field search
+
+The simplest use case: searching through a list of objects by a single field.
+
+```typescript
+const users = [
+  { name: "John Doe", age: 25 },
+  { name: "Jane Smith", age: 35 },
+  { name: "John Smith", age: 85 },
+];
+
+const results = picoSearch(users, "John", ["name"]);
+// Returns: John Doe, John Smith
+```
+
+### Multi-field weighted search
+
+When searching across multiple fields, you can weight certain fields higher to prioritize them in results.
+
+```typescript
+const contacts = [
+  { name: "John Doe", city: "New York" },
+  { name: "Jane Smith", city: "San Francisco" },
+  { name: "Bob Johnson", city: "Los Angeles" },
+];
+
+const results = picoSearch(
+  contacts,
+  "John",
+  [
+    { name: "name", weight: 5 },
+    { name: "city", weight: 1 },
+  ]
+);
+// "John Doe" ranks highest due to name match with higher weight
+```
+
+<Tip>
+Weights are relative. A weight of 5 is five times more important than a weight of 1. Use this to emphasize primary fields like titles or names over secondary metadata.
+</Tip>
+
+### Subsequence matching
+
+PicoSearch matches scattered characters across the string, similar to command palette search in modern IDEs.
+
+```typescript
+const people = [{ name: "John Doe" }];
+
+// Type just the initials
+picoSearch(people, "jd", ["name"]);
+// Returns: John Doe
+
+const movies = [{ title: "The Shawshank Redemption" }];
+
+// Match with abbreviated typing
+picoSearch(movies, "shwshnk", ["title"]);
+// Returns: The Shawshank Redemption
+```
+
+<Info>
+Subsequence matching works by finding characters in order, but not necessarily consecutively. This is the same technique used in tools like fzf and VSCode's command palette.
+</Info>
+
+## Real-world use cases
+
+### Label and tag search
+
+Searching through labels with hyphens and special characters is a common pattern in issue trackers and content management systems.
+
+```typescript
+const labels = [
+  { label: "bug-report" },
+  { label: "feature-request" },
+  { label: "help-center" },
+  { label: "high-priority" },
+  { label: "customer-support" },
+  { label: "auto-reply" },
+];
+
+// Search by first segment
+picoSearch(labels, "bug", ["label"]);
+// Returns: bug-report
+
+// Search by second segment
+picoSearch(labels, "reply", ["label"]);
+// Returns: auto-reply
+
+// Subsequence across hyphen
+picoSearch(labels, "ar", ["label"]);
+// Returns: auto-reply, auto-resolve
+
+// Multi-segment subsequence
+picoSearch(labels, "fr", ["label"]);
+// Returns: first-response, feature-request
+```
+
+### Multi-word queries
+
+Multi-word searches require all terms to match somewhere across the searchable fields.
+
+```typescript
+const people = [
+  { name: "John Doe", city: "New York" },
+  { name: "John Smith", city: "Seattle" },
+  { name: "Jane Smith", city: "Boston" },
+];
+
+const results = picoSearch(
+  people,
+  "John New",
+  [
+    { name: "name", weight: 3 },
+    { name: "city", weight: 2 },
+  ]
+);
+// Returns: John Doe (matches both "John" in name and "New" in city)
+```
+
+<Tip>
+In multi-word mode, each term finds its best match across all keys. The final score is the minimum of all term scores, ensuring all words must match.
+</Tip>
+
+### Numeric prefixes
+
+PicoSearch handles numeric prefixes correctly, useful for IDs, versions, and special identifiers.
+
+```typescript
+const integrations = [
+  { name: "360dialog" },
+  { name: "Apple" },
+  { name: "Google" },
+];
+
+picoSearch(integrations, "3", ["name"]);
+// Returns: 360dialog
+
+const versions = [
+  { label: "v2-migration" },
+  { label: "v2-beta" },
+  { label: "v1-deprecated" },
+];
+
+picoSearch(versions, "v2", ["label"]);
+// Returns: v2-migration, v2-beta
+```
+
+### CamelCase search
+
+PicoSearch recognizes camelCase word boundaries, making it excellent for searching code or API names.
+
+```typescript
+const methods = [
+  { name: "getElementById" },
+  { name: "querySelector" },
+  { name: "addEventListener" },
+];
+
+picoSearch(methods, "gEBI", ["name"]);
+// Matches: getElementById (recognizes camelCase boundaries)
+```
+
+## Advanced patterns
+
+### Handling missing data
+
+PicoSearch gracefully handles null or undefined values without throwing errors.
+
+```typescript
+const data = [
+  { name: "John Doe", city: null },
+  { name: "Jane Smith", city: "Boston" },
+  { name: "Bob Johnson" }, // city is undefined
+];
+
+const results = picoSearch(
+  data,
+  "John",
+  [
+    { name: "name", weight: 5 },
+    { name: "city", weight: 1 },
+  ]
+);
+// Works without errors, returns: John Doe
+```
+
+### Threshold filtering
+
+Adjust the threshold to control result quality and quantity.
+
+```typescript
+const items = [
+  { name: "JavaScript" },
+  { name: "TypeScript" },
+  { name: "CoffeeScript" },
+];
+
+// Strict threshold: fewer, more precise results
+const strict = picoSearch(items, "jav", ["name"], { threshold: 0.7 });
+// Returns: JavaScript
+
+// Loose threshold: more results, fuzzier matches
+const loose = picoSearch(items, "jav", ["name"], { threshold: 0.3 });
+// Returns: JavaScript (and possibly others)
+
+// No matches below threshold
+picoSearch(items, "python", ["name"], { threshold: 0.3 });
+// Returns: []
+```
+
+<CardGroup cols={2}>
+  <Card title="Default threshold" icon="sliders">
+    The default threshold is `0.3`, which balances precision and recall for most use cases.
+  </Card>
+  <Card title="Tuning tips" icon="wrench">
+    Increase threshold for precise autocomplete, decrease for fuzzy "did you mean?" suggestions.
+  </Card>
+</CardGroup>
+
+### Empty search handling
+
+When the search term is empty, PicoSearch returns all items unchanged.
+
+```typescript
+const items = [{ name: "A" }, { name: "B" }, { name: "C" }];
+
+picoSearch(items, "", ["name"]);
+// Returns: [{ name: "A" }, { name: "B" }, { name: "C" }]
+```
+
+This makes it easy to implement "show all" behavior when users clear the search input.
+
+## Pattern comparison
+
+<Accordion title="Prefix vs subsequence vs exact match">
+  PicoSearch combines all three patterns intelligently:
+
+  - **Exact matches** score highest (1.0)
+  - **Prefix matches** score higher than mid-string matches
+  - **Contiguous matches** score higher than scattered subsequences
+  - **Word boundary matches** get bonus scoring
+
+  Example:
+  ```typescript
+  const data = [
+    { name: "Crocodile Dundee" },
+    { name: "Django Unchained" },
+    { name: "The Deer Hunter" },
+  ];
+
+  picoSearch(data, "Dund", ["name"]);
+  // "Crocodile Dundee" ranks first (prefix match on "Dundee")
+  ```
+</Accordion>
+
+<Accordion title="Short vs long targets">
+  When pattern matches are similar, shorter targets rank higher:
+
+  ```typescript
+  const items = [
+    { name: "cat" },
+    { name: "caterpillar" },
+  ];
+
+  picoSearch(items, "c", ["name"]);
+  // "cat" scores higher than "caterpillar"
+  ```
+
+  This prevents long strings from dominating results when users type short queries.
+</Accordion>
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Use weighted keys" icon="scale-balanced">
+    Weight primary fields (name, title) higher than metadata (tags, categories) to improve result relevance.
+  </Card>
+  <Card title="Tune your threshold" icon="gauge-high">
+    Start with the default 0.3 and adjust based on your data and user feedback. Lower for more results, higher for precision.
+  </Card>
+  <Card title="Handle empty states" icon="inbox">
+    PicoSearch returns all items when search is empty. Use this for clean "show all / filter" UX patterns.
+  </Card>
+  <Card title="Multi-word for filters" icon="filter">
+    Use multi-word queries to let users filter by multiple criteria simultaneously across different fields.
+  </Card>
+</CardGroup>

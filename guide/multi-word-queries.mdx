@@ -1,0 +1,223 @@
+---
+title: Multi-word queries
+description: Understanding how PicoSearch handles space-separated search terms
+---
+
+PicoSearch automatically handles multi-word queries by splitting the search term on whitespace and matching each word independently.
+
+## How multi-word queries work
+
+When you search with multiple words separated by spaces, PicoSearch:
+
+1. Splits the search term into individual words
+2. Each word finds its best match across all keys
+3. **All words must match somewhere** for the result to be included
+4. The final score is the minimum score across all words
+
+```typescript
+const data = [
+  { name: "John Doe", city: "New York" },
+  { name: "Jane Smith", city: "Boston" },
+];
+
+picoSearch(data, "John New", ["name", "city"]);
+// [{ name: "John Doe", city: "New York" }]
+// ✓ "John" matches name field
+// ✓ "New" matches city field
+```
+
+<Note>
+Multi-word queries require **all terms to match**. If any word doesn't match anywhere, that result is excluded.
+</Note>
+
+## Word matching logic
+
+From the source code at `src/pico.ts:57-70`, here's how each word is scored:
+
+```typescript
+// Each term finds its best weighted score across keys
+const termScores = terms.map((term) => {
+  let best = 0;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i]) {
+      const s = fuzzyScore(values[i], term);
+      if (s > best) best = s;
+    }
+  }
+  return best;
+});
+
+// All terms must match somewhere (min across terms)
+const similarity = Math.min(...termScores);
+```
+
+Each word finds its **best match** across all searchable fields, and the result's score is the **minimum** of all word scores.
+
+## Practical examples
+
+<CodeGroup>
+
+```typescript Name and location
+const people = [
+  { name: "John Doe", city: "New York" },
+  { name: "John Smith", city: "Boston" },
+  { name: "Jane Doe", city: "New York" },
+];
+
+picoSearch(people, "John New", ["name", "city"]);
+// Only [{ name: "John Doe", city: "New York" }]
+// - "John" matches name
+// - "New" matches city
+```
+
+```typescript Multiple field matching
+const products = [
+  { title: "Red Sports Car", category: "Vehicles" },
+  { title: "Blue Sports Bike", category: "Vehicles" },
+  { title: "Red Running Shoes", category: "Sports" },
+];
+
+picoSearch(products, "red sports", ["title", "category"]);
+// Matches:
+// - { title: "Red Sports Car", category: "Vehicles" }
+// - { title: "Red Running Shoes", category: "Sports" }
+```
+
+```typescript Order doesn't matter
+const data = [
+  { name: "Alice Johnson", dept: "Engineering" },
+  { name: "Bob Smith", dept: "Engineering" },
+];
+
+picoSearch(data, "eng alice", ["name", "dept"]);
+// [{ name: "Alice Johnson", dept: "Engineering" }]
+
+picoSearch(data, "alice eng", ["name", "dept"]);
+// Same result - word order doesn't matter
+```
+
+</CodeGroup>
+
+## Multi-word with weighted keys
+
+Weighted keys work naturally with multi-word queries:
+
+```typescript
+const data = [
+  { name: "John Doe", city: "New York" },
+  { name: "Jane Smith", city: "Boston" },
+];
+
+const results = picoSearch(data, "John New", [
+  { name: "name", weight: 3 },
+  { name: "city", weight: 2 },
+]);
+// [{ name: "John Doe", city: "New York" }]
+```
+
+The weights don't change whether results match, but they affect the **ranking** when multiple results match all terms.
+
+<Tip>
+Use weighted keys to influence which matches rank higher when multiple results contain all search words.
+</Tip>
+
+## Whitespace handling
+
+PicoSearch trims and normalizes whitespace:
+
+```typescript
+// From src/pico.ts:32-33
+const trimmed = searchTerm.trim().toLowerCase();
+const terms = trimmed.split(/\s+/).filter(Boolean);
+```
+
+This means:
+- Leading/trailing spaces are removed
+- Multiple consecutive spaces are treated as one separator
+- Empty terms after splitting are filtered out
+
+<CodeGroup>
+
+```typescript Extra spaces
+picoSearch(data, "  John   New  ", ["name", "city"]);
+// Treated the same as "John New"
+```
+
+```typescript Tab characters
+picoSearch(data, "John\tNew", ["name", "city"]);
+// Also splits on tabs and other whitespace
+```
+
+</CodeGroup>
+
+## Single vs multi-word behavior
+
+PicoSearch uses different strategies for single vs multi-word queries:
+
+<Tabs>
+  <Tab title="Single word">
+    ```typescript
+    // From src/pico.ts:47-55
+    // Single term: score each key, weighted average
+    const scores = values.map((v) => fuzzyScore(v, terms[0]));
+    const weights = normalizedKeys.map((k) => k.weight);
+    const similarity = weightedAverage(scores, weights);
+    ```
+    Uses a weighted average across all fields.
+  </Tab>
+  
+  <Tab title="Multiple words">
+    ```typescript
+    // From src/pico.ts:57-70
+    // Each term finds its best weighted score across keys
+    const termScores = terms.map((term) => {
+      let best = 0;
+      for (let i = 0; i < values.length; i++) {
+        if (values[i]) {
+          const s = fuzzyScore(values[i], term);
+          if (s > best) best = s;
+        }
+      }
+      return best;
+    });
+    
+    // All terms must match (minimum score)
+    const similarity = Math.min(...termScores);
+    ```
+    Each word must match, uses minimum score.
+  </Tab>
+</Tabs>
+
+## Common patterns
+
+### Filter by multiple attributes
+
+```typescript
+const employees = [
+  { name: "Alice Johnson", dept: "Engineering", level: "Senior" },
+  { name: "Bob Smith", dept: "Engineering", level: "Junior" },
+  { name: "Carol White", dept: "Design", level: "Senior" },
+];
+
+// Find senior engineers
+picoSearch(employees, "senior eng", ["name", "dept", "level"]);
+// [{ name: "Alice Johnson", dept: "Engineering", level: "Senior" }]
+```
+
+### Narrow down results progressively
+
+```typescript
+const issues = [
+  { title: "Bug in login form", status: "open", priority: "high" },
+  { title: "Bug in signup flow", status: "closed", priority: "low" },
+  { title: "Feature request", status: "open", priority: "high" },
+];
+
+// Find high priority open items
+picoSearch(issues, "high open", ["title", "status", "priority"]);
+// [{ title: "Bug in login form", status: "open", priority: "high" }]
+```
+
+<Warning>
+Because all words must match, very specific multi-word queries may return no results. Consider implementing fallback searches with individual terms if the multi-word search is empty.
+</Warning>

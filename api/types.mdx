@@ -1,0 +1,212 @@
+---
+title: Types
+description: TypeScript types and interfaces used in PicoSearch
+---
+
+## Core types
+
+### Keys
+
+```typescript
+type Keys = Array<KeyWithWeight | string>
+```
+
+Defines how to specify which object keys to search. Can be a mix of strings and weighted key objects.
+
+**Examples:**
+
+<CodeGroup>
+```typescript Simple string array
+const keys: Keys = ['name', 'email', 'username']
+```
+
+```typescript Weighted keys
+const keys: Keys = [
+  { name: 'title', weight: 2 },
+  { name: 'description', weight: 1 }
+]
+```
+
+```typescript Mixed
+const keys: Keys = [
+  'name',
+  { name: 'email', weight: 0.5 },
+  'username'
+]
+```
+</CodeGroup>
+
+### KeyWithWeight
+
+```typescript
+type KeyWithWeight = {
+  name: string
+  weight: number
+}
+```
+
+Represents a searchable key with an associated weight that influences scoring.
+
+<ParamField path="name" type="string" required>
+  The name of the object key to search.
+</ParamField>
+
+<ParamField path="weight" type="number" required>
+  The weight multiplier for this key's score. Higher weights increase the influence of matches in this field.
+  
+  - Values > 1 increase importance
+  - Values < 1 decrease importance
+  - Default weight for string keys is 1
+</ParamField>
+
+**Example:**
+
+```typescript
+const weightedKey: KeyWithWeight = {
+  name: 'title',
+  weight: 2
+}
+
+// In a search, matches in 'title' will be weighted twice as heavily
+const results = picoSearch(articles, 'search term', [
+  weightedKey,
+  { name: 'content', weight: 1 }
+])
+```
+
+### SearchResult
+
+```typescript
+interface SearchResult<T> {
+  object: T
+  similarity: number
+}
+```
+
+Internal interface used by PicoSearch to track objects and their similarity scores during the search process. This type is not exported from the library.
+
+<ResponseField name="object" type="T">
+  The original object from the search array.
+</ResponseField>
+
+<ResponseField name="similarity" type="number">
+  The similarity score between 0 and 1, where:
+  - `0` = no match
+  - `1` = perfect match
+  
+  This score is calculated using the fuzzy matching algorithm and weights.
+</ResponseField>
+
+## Configuration types
+
+### PicoSearchConfig
+
+```typescript
+type PicoSearchConfig = {
+  threshold: number
+}
+```
+
+Configuration options for the `picoSearch` function.
+
+<ParamField path="threshold" type="number" default="0.3">
+  Minimum similarity score (0-1) required for an object to be included in results.
+  
+  <Expandable title="Threshold values">
+    - `0` - Include all objects that have any match
+    - `0.1` - Very loose matching, includes weak matches
+    - `0.3` - Default, balanced filtering
+    - `0.5` - Moderate filtering, only decent matches
+    - `0.7` - Strict filtering, only close matches
+    - `1.0` - Only exact matches
+  </Expandable>
+</ParamField>
+
+**Example:**
+
+```typescript
+const config: PicoSearchConfig = {
+  threshold: 0.6
+}
+
+const results = picoSearch(data, 'query', ['field'], config)
+```
+
+## Utility types
+
+### weightedAverage
+
+```typescript
+function weightedAverage(
+  values: number[],
+  weights?: number[]
+): number
+```
+
+Internal utility function that calculates the weighted average of values. Not exported from the library.
+
+<ParamField path="values" type="number[]" required>
+  The values to be averaged.
+</ParamField>
+
+<ParamField path="weights" type="number[]">
+  Optional weights to apply to each value. If provided, must be the same length as `values`.
+</ParamField>
+
+<ResponseField name="result" type="number">
+  The weighted average of the input values.
+</ResponseField>
+
+**Throws:** Error if the number of values doesn't equal the number of weights.
+
+## Generic type parameter
+
+### T
+
+The `picoSearch` function uses a generic type parameter `T` to represent the type of objects being searched:
+
+```typescript
+function picoSearch<T>(
+  objectsArray: T[],
+  searchTerm: string,
+  keys: Keys,
+  config?: { threshold: number }
+): T[]
+```
+
+This ensures full type safety throughout your application:
+
+<CodeGroup>
+```typescript Explicit type
+interface Product {
+  id: string
+  name: string
+  price: number
+}
+
+const products: Product[] = [...]
+
+// Explicitly specify the type
+const results = picoSearch<Product>(
+  products,
+  'laptop',
+  ['name']
+)
+// results is typed as Product[]
+```
+
+```typescript Inferred type
+const products = [
+  { id: '1', name: 'Laptop', price: 999 },
+  { id: '2', name: 'Mouse', price: 29 }
+]
+
+// TypeScript infers the type from the array
+const results = picoSearch(
+  products,
+  'laptop',
+  ['name']
+)
+// results is typed as { id: string; name: string; price: number }[]
+```
+</CodeGroup>
