@@ -74,40 +74,15 @@ const results = picoSearch(articles, 'search term', [
 ])
 ```
 
-### SearchResult
+## Configuration
+
+The `picoSearch` function accepts an optional configuration object with the following structure:
 
 ```typescript
-interface SearchResult<T> {
-  object: T
-  similarity: number
+{
+  threshold?: number
 }
 ```
-
-Internal interface used by PicoSearch to track objects and their similarity scores during the search process. This type is not exported from the library.
-
-<ResponseField name="object" type="T">
-  The original object from the search array.
-</ResponseField>
-
-<ResponseField name="similarity" type="number">
-  The similarity score between 0 and 1, where:
-  - `0` = no match
-  - `1` = perfect match
-  
-  This score is calculated using the fuzzy matching algorithm and weights.
-</ResponseField>
-
-## Configuration types
-
-### PicoSearchConfig
-
-```typescript
-type PicoSearchConfig = {
-  threshold: number
-}
-```
-
-Configuration options for the `picoSearch` function.
 
 <ParamField path="threshold" type="number" default="0.3">
   Minimum similarity score (0-1) required for an object to be included in results.
@@ -125,39 +100,12 @@ Configuration options for the `picoSearch` function.
 **Example:**
 
 ```typescript
-const config: PicoSearchConfig = {
+const config = {
   threshold: 0.6
 }
 
 const results = picoSearch(data, 'query', ['field'], config)
 ```
-
-## Utility types
-
-### weightedAverage
-
-```typescript
-function weightedAverage(
-  values: number[],
-  weights?: number[]
-): number
-```
-
-Internal utility function that calculates the weighted average of values. Not exported from the library.
-
-<ParamField path="values" type="number[]" required>
-  The values to be averaged.
-</ParamField>
-
-<ParamField path="weights" type="number[]">
-  Optional weights to apply to each value. If provided, must be the same length as `values`.
-</ParamField>
-
-<ResponseField name="result" type="number">
-  The weighted average of the input values.
-</ResponseField>
-
-**Throws:** Error if the number of values doesn't equal the number of weights.
 
 ## Generic type parameter
 

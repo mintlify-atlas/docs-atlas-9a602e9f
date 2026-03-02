@@ -58,8 +58,6 @@
     "TypeScript support with full type definitions"
   ],
   "publicApiSurface": [
-    "picoSearch(objectsArray, searchTerm, keys, config?)",
-    "fuzzyScore(target, pattern)",
-    "weightedAverage(values, weights?)"
+    "picoSearch(objectsArray, searchTerm, keys, config?)"
   ]
 }
